@@ -74,7 +74,7 @@ export const useSignupStore = create<SignupState>((set, get) => ({
     const { nickname } = get();
     return [
       { label: "2~20자", isValid: nickname.length >= 2 && nickname.length <= 20 },
-      { label: "영문 필수 (숫자/특수문자 선택)", isValid: nickname.length > 0 && /^(?=.*[a-zA-Z])[a-zA-Z0-9!@#$%^&*_-]+$/.test(nickname) },
+      { label: "영문 필수 (숫자/특수문자 선택)", isValid: nickname.length > 0 && /^(?=.*[a-zA-Z])[a-zA-Z0-9!@#$%^&*_.\-]+$/.test(nickname) },
     ];
   },
 
