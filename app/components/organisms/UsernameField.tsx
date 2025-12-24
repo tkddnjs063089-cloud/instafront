@@ -14,8 +14,8 @@ export default function UsernameField() {
     if (!isValid) return alert("올바른 아이디 형식이 아닙니다");
 
     try {
-      const res = await axios.get(`http://localhost:3001/chackId?username=${username}`);
-      if (res.data.success) {
+      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/checkId?username=${username}`);
+      if (res.data.available) {
         alert("사용 가능한 아이디입니다.");
       } else {
         alert("이미 존재하는 아이디입니다.");
@@ -27,17 +27,10 @@ export default function UsernameField() {
 
   return (
     <div className="flex items-start gap-2">
-      <ValidatedInput
-        type="text"
-        placeholder="아이디"
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
-        rules={rules}
-      />
+      <ValidatedInput type="text" placeholder="아이디" value={username} onChange={(e) => setUsername(e.target.value)} rules={rules} />
       <Button onClick={checkId} className="px-2 py-2 whitespace-nowrap">
         중복 확인
       </Button>
     </div>
   );
 }
-
