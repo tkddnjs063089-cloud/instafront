@@ -24,9 +24,14 @@ export default function Home() {
         username,
         password,
       });
-      console.log(res.data);
-      alert("로그인 성공!");
-      // TODO: 로그인 후 메인 페이지로 이동 또는 토큰 저장
+
+      // JWT 토큰 저장
+      localStorage.setItem("accessToken", res.data.accessToken);
+      // 유저 정보 localStorage에 저장
+      localStorage.setItem("user", JSON.stringify(res.data.user));
+
+      // 홈으로 이동
+      router.push("/home");
     } catch (error: any) {
       const message = error.response?.data?.message || "아이디나 비밀번호가 잘못 됐습니다.";
       alert(message);
