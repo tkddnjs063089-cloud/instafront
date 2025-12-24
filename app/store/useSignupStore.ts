@@ -73,7 +73,7 @@ export const useSignupStore = create<SignupState>((set, get) => ({
   getNicknameRules: () => {
     const { nickname } = get();
     return [
-      { label: "2~10자", isValid: nickname.length >= 2 && nickname.length <= 10 },
+      { label: "2~20자", isValid: nickname.length >= 2 && nickname.length <= 20 },
       { label: "영문 (숫자/특수문자 선택)", isValid: nickname.length > 0 && /^[a-zA-Z0-9!@#$%^&*_-]+$/.test(nickname) },
     ];
   },

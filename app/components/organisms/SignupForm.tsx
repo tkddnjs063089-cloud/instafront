@@ -1,4 +1,7 @@
 "use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useSignupStore } from "@/app/store/useSignupStore";
 import UsernameField from "./UsernameField";
 import PasswordField from "./PasswordField";
@@ -9,19 +12,9 @@ import Button from "../atoms/Button";
 import axios from "axios";
 
 export default function SignupForm() {
-  const {
-    username,
-    password,
-    confirmPassword,
-    nickname,
-    file,
-    isAllValid,
-    getUsernameRules,
-    getPasswordRules,
-    getConfirmPasswordRules,
-    getNicknameRules,
-    reset,
-  } = useSignupStore();
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
+  const { username, password, confirmPassword, nickname, file, getUsernameRules, getPasswordRules, getConfirmPasswordRules, getNicknameRules, reset } = useSignupStore();
 
   const handleSubmit = async () => {
     // 유효성 검사
@@ -47,32 +40,32 @@ export default function SignupForm() {
     form.append("confirmPassword", confirmPassword);
     form.append("nickname", nickname);
 
+    setIsLoading(true);
     try {
-      const res = await axios.post("http://localhost:3001/upload", form);
+      const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/upload`, form);
       console.log(res.data);
-      alert("회원가입 성공!");
-      reset(); // 폼 초기화
-    } catch (error) {
-      alert("회원가입 중 오류가 발생했습니다.");
+      alert("회원가입 성공! 로그인 페이지로 이동합니다.");
+      reset();
+      router.push("/");
+    } catch (error: any) {
+      const message = error.response?.data?.message || "회원가입 중 오류가 발생했습니다.";
+      alert(message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <section className="flex flex-col items-center justify-center h-screen w-full mx-auto">
-      <div className="flex flex-col gap-4 w-full max-w-xs mx-auto">
-        <h1 className="text-2xl font-bold text-center mb-4">회원가입</h1>
+    <div className="flex flex-col gap-3">
+      <UsernameField />
+      <PasswordField />
+      <ConfirmPasswordField />
+      <NicknameField />
+      <ProfileImageField />
 
-        <UsernameField />
-        <PasswordField />
-        <ConfirmPasswordField />
-        <NicknameField />
-        <ProfileImageField />
-
-        <Button onClick={handleSubmit} className="w-full mt-2">
-          회원가입
-        </Button>
-      </div>
-    </section>
+      <Button onClick={handleSubmit} className="w-full mt-2 font-semibold" disabled={isLoading}>
+        {isLoading ? "가입 중..." : "회원가입"}
+      </Button>
+    </div>
   );
 }
-
