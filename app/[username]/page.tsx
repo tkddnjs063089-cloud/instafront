@@ -37,6 +37,19 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isOwnProfile, setIsOwnProfile] = useState(false);
 
+  // 프로필 편집 모달 상태
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editNickname, setEditNickname] = useState("");
+  const [editBio, setEditBio] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  // 게시물 작성 모달 상태
+  const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
+  const [postImage, setPostImage] = useState<File | null>(null);
+  const [postImagePreview, setPostImagePreview] = useState<string>("");
+  const [postCaption, setPostCaption] = useState("");
+  const [isPosting, setIsPosting] = useState(false);
+
   useEffect(() => {
     // 토큰 확인
     const token = localStorage.getItem("accessToken");
@@ -91,6 +104,119 @@ export default function ProfilePage() {
     }
   };
 
+  // 프로필 편집 모달 열기
+  const openEditModal = () => {
+    if (user) {
+      setEditNickname(user.nickname);
+      setEditBio(user.bio || "");
+      setIsEditModalOpen(true);
+    }
+  };
+
+  // 프로필 편집 모달 닫기
+  const closeEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditNickname("");
+    setEditBio("");
+  };
+
+  // 프로필 업데이트
+  const handleUpdateProfile = async () => {
+    if (!user) return;
+
+    setIsUpdating(true);
+    try {
+      const res = await api.patch("/profile", {
+        nickname: editNickname,
+        bio: editBio,
+      });
+
+      // 유저 상태 업데이트
+      setUser({
+        ...user,
+        nickname: res.data.user.nickname,
+        bio: res.data.user.bio,
+      });
+
+      closeEditModal();
+      alert("프로필이 업데이트되었습니다!");
+    } catch (error: any) {
+      const message = error.response?.data?.message || "프로필 업데이트에 실패했습니다.";
+      alert(message);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // 게시물 작성 모달 열기
+  const openCreatePostModal = () => {
+    setIsCreatePostModalOpen(true);
+  };
+
+  // 게시물 작성 모달 닫기
+  const closeCreatePostModal = () => {
+    setIsCreatePostModalOpen(false);
+    setPostImage(null);
+    setPostImagePreview("");
+    setPostCaption("");
+  };
+
+  // 이미지 선택 핸들러
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPostImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPostImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // 게시물 작성
+  const handleCreatePost = async () => {
+    if (!postImage) {
+      alert("이미지를 선택해주세요");
+      return;
+    }
+
+    setIsPosting(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", postImage);
+      formData.append("caption", postCaption);
+
+      const res = await api.post("/posts", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      // 게시물 목록에 새 게시물 추가
+      setPosts([res.data.post, ...posts]);
+
+      // 유저 stats 업데이트
+      if (user) {
+        setUser({
+          ...user,
+          stats: {
+            ...user.stats,
+            posts: user.stats.posts + 1,
+          },
+        });
+      }
+
+      closeCreatePostModal();
+      alert("게시물이 작성되었습니다!");
+    } catch (error: any) {
+      const message = error.response?.data?.message || "게시물 작성에 실패했습니다.";
+      alert(message);
+    } finally {
+      setIsPosting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black">
@@ -116,9 +242,17 @@ export default function ProfilePage() {
       <header className="bg-black border-b border-zinc-800 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
           <h1 className="text-2xl font-semibold bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 bg-clip-text text-transparent font-serif italic">Instagram</h1>
-          <button onClick={handleLogout} className="text-sm text-zinc-400 hover:text-white transition-colors">
-            로그아웃
-          </button>
+          <div className="flex items-center gap-4">
+            <button onClick={openCreatePostModal} className="text-sm text-zinc-400 hover:text-white transition-colors flex items-center gap-1">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              게시물 작성
+            </button>
+            <button onClick={handleLogout} className="text-sm text-zinc-400 hover:text-white transition-colors">
+              로그아웃
+            </button>
+          </div>
         </div>
       </header>
 
@@ -140,7 +274,9 @@ export default function ProfilePage() {
             <div className="flex items-center gap-4 mb-5">
               <h2 className="text-xl font-normal">{user.nickname}</h2>
               {isOwnProfile ? (
-                <button className="px-4 py-1.5 bg-zinc-800 rounded-lg text-sm font-semibold hover:bg-zinc-700 transition-colors">프로필 편집</button>
+                <button onClick={openEditModal} className="px-4 py-1.5 bg-zinc-800 rounded-lg text-sm font-semibold hover:bg-zinc-700 transition-colors">
+                  프로필 편집
+                </button>
               ) : (
                 <button className="px-6 py-1.5 bg-blue-500 rounded-lg text-sm font-semibold hover:bg-blue-600 transition-colors">팔로우</button>
               )}
@@ -245,6 +381,130 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+
+      {/* 프로필 편집 모달 */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={closeEditModal}>
+          <div className="bg-zinc-900 rounded-xl w-full max-w-md mx-4 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            {/* 모달 헤더 */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-700">
+              <button onClick={closeEditModal} className="text-zinc-400 hover:text-white">
+                취소
+              </button>
+              <h3 className="font-semibold">프로필 편집</h3>
+              <button onClick={handleUpdateProfile} disabled={isUpdating} className="text-blue-500 font-semibold hover:text-blue-400 disabled:opacity-50">
+                {isUpdating ? "저장 중..." : "완료"}
+              </button>
+            </div>
+
+            {/* 모달 내용 */}
+            <div className="p-6">
+              {/* 프로필 이미지 */}
+              <div className="flex flex-col items-center mb-6">
+                <img src={user?.profileImage} alt={user?.nickname} className="w-20 h-20 rounded-full object-cover mb-2" />
+                <button className="text-blue-500 text-sm font-semibold hover:text-blue-400">프로필 사진 바꾸기</button>
+              </div>
+
+              {/* 닉네임 입력 */}
+              <div className="mb-4">
+                <label className="block text-zinc-400 text-sm mb-2">닉네임</label>
+                <input
+                  type="text"
+                  value={editNickname}
+                  onChange={(e) => setEditNickname(e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-zinc-500"
+                  maxLength={20}
+                />
+                <p className="text-zinc-500 text-xs mt-1">{editNickname.length}/20</p>
+              </div>
+
+              {/* 자기소개 입력 */}
+              <div>
+                <label className="block text-zinc-400 text-sm mb-2">자기소개</label>
+                <textarea
+                  value={editBio}
+                  onChange={(e) => setEditBio(e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-zinc-500 resize-none"
+                  rows={3}
+                  maxLength={150}
+                  placeholder="자기소개를 입력하세요"
+                />
+                <p className="text-zinc-500 text-xs mt-1">{editBio.length}/150</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 게시물 작성 모달 */}
+      {isCreatePostModalOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={closeCreatePostModal}>
+          <div className="bg-zinc-900 rounded-xl w-full max-w-lg mx-4 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            {/* 모달 헤더 */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-700">
+              <button onClick={closeCreatePostModal} className="text-zinc-400 hover:text-white">
+                취소
+              </button>
+              <h3 className="font-semibold">새 게시물 만들기</h3>
+              <button onClick={handleCreatePost} disabled={isPosting || !postImage} className="text-blue-500 font-semibold hover:text-blue-400 disabled:opacity-50">
+                {isPosting ? "공유 중..." : "공유하기"}
+              </button>
+            </div>
+
+            {/* 모달 내용 */}
+            <div className="p-4">
+              {/* 이미지 선택 영역 */}
+              {!postImagePreview ? (
+                <label className="flex flex-col items-center justify-center h-64 border-2 border-dashed border-zinc-700 rounded-lg cursor-pointer hover:border-zinc-500 transition-colors">
+                  <svg className="w-16 h-16 text-zinc-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                  <p className="text-zinc-400 mb-2">사진을 여기에 끌어다 놓으세요</p>
+                  <p className="text-blue-500 font-semibold">컴퓨터에서 선택</p>
+                  <input type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
+                </label>
+              ) : (
+                <div className="relative">
+                  <img src={postImagePreview} alt="미리보기" className="w-full h-64 object-cover rounded-lg" />
+                  <button
+                    onClick={() => {
+                      setPostImage(null);
+                      setPostImagePreview("");
+                    }}
+                    className="absolute top-2 right-2 bg-black/50 rounded-full p-1 hover:bg-black/70"
+                  >
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+
+              {/* 게시글 입력 */}
+              <div className="mt-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <img src={user?.profileImage} alt={user?.nickname} className="w-8 h-8 rounded-full object-cover" />
+                  <span className="font-semibold text-sm">{user?.nickname}</span>
+                </div>
+                <textarea
+                  value={postCaption}
+                  onChange={(e) => setPostCaption(e.target.value)}
+                  className="w-full bg-transparent text-white focus:outline-none resize-none"
+                  rows={3}
+                  maxLength={2200}
+                  placeholder="문구를 입력하세요..."
+                />
+                <p className="text-zinc-500 text-xs text-right">{postCaption.length}/2200</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
