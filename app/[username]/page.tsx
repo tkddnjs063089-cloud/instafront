@@ -41,6 +41,7 @@ export default function ProfilePage() {
     // 토큰 확인
     const token = localStorage.getItem("accessToken");
     if (!token) {
+      setIsLoading(false);
       router.push("/");
       return;
     }
@@ -64,6 +65,8 @@ export default function ProfilePage() {
         }
       } catch (error) {
         console.error("프로필 로드 실패:", error);
+        // API 에러 시 로그인 페이지로 이동
+        router.push("/");
       } finally {
         setIsLoading(false);
       }
@@ -97,7 +100,11 @@ export default function ProfilePage() {
   }
 
   if (!user) {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <p className="text-white">로그인이 필요합니다. 잠시 후 로그인 페이지로 이동합니다...</p>
+      </div>
+    );
   }
 
   return (
