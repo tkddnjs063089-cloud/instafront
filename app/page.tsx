@@ -27,6 +27,7 @@ export default function Home() {
 
       // JWT 토큰 저장
       localStorage.setItem("accessToken", res.data.accessToken);
+      localStorage.setItem("refreshToken", res.data.refreshToken);
       // 유저 정보 localStorage에 저장
       localStorage.setItem("user", JSON.stringify(res.data.user));
 

@@ -57,10 +57,19 @@ export default function HomePage() {
     fetchProfile();
   }, [router]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("user");
-    router.push("/");
+  const handleLogout = async () => {
+    try {
+      // 서버에 로그아웃 요청 (Refresh Token 삭제)
+      await api.post("/logout");
+    } catch (error) {
+      console.error("로그아웃 API 실패:", error);
+    } finally {
+      // 로컬 스토리지 정리
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      localStorage.removeItem("user");
+      router.push("/");
+    }
   };
 
   if (isLoading) {
