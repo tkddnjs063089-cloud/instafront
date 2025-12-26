@@ -8,8 +8,8 @@ import axios from "axios";
 
 export default function Home() {
   const router = useRouter();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("tkddnjs0630");
+  const [password, setPassword] = useState("tkddnjs0729!");
   const [isLoading, setIsLoading] = useState(false);
 
   // 로그인 버튼 클릭
@@ -31,8 +31,8 @@ export default function Home() {
       // 유저 정보 localStorage에 저장
       localStorage.setItem("user", JSON.stringify(res.data.user));
 
-      // 홈으로 이동
-      router.push("/home");
+      // 프로필 페이지로 이동
+      router.push(`/${res.data.user.username}`);
     } catch (error: any) {
       const message = error.response?.data?.message || "아이디나 비밀번호가 잘못 됐습니다.";
       alert(message);
