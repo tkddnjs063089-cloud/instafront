@@ -4,6 +4,10 @@ import React, { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import api from "../lib/api";
 
+// 기본 프로필 이미지 (SVG 아이콘)
+const DEFAULT_PROFILE_IMAGE =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23a1a1aa'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z'/%3E%3C/svg%3E";
+
 interface Stats {
   posts: number;
   followers: number;
@@ -67,6 +71,8 @@ export default function ProfilePage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editNickname, setEditNickname] = useState("");
   const [editBio, setEditBio] = useState("");
+  const [editProfileImage, setEditProfileImage] = useState<File | null>(null);
+  const [editProfileImagePreview, setEditProfileImagePreview] = useState<string>("");
   const [isUpdating, setIsUpdating] = useState(false);
 
   // 게시물 작성 모달 상태
@@ -151,6 +157,21 @@ export default function ProfilePage() {
     setIsEditModalOpen(false);
     setEditNickname("");
     setEditBio("");
+    setEditProfileImage(null);
+    setEditProfileImagePreview("");
+  };
+
+  // 프로필 이미지 선택 핸들러
+  const handleProfileImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setEditProfileImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditProfileImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   // 프로필 업데이트
@@ -159,9 +180,17 @@ export default function ProfilePage() {
 
     setIsUpdating(true);
     try {
-      const res = await api.patch("/profile", {
-        nickname: editNickname,
-        bio: editBio,
+      const formData = new FormData();
+      formData.append("nickname", editNickname);
+      formData.append("bio", editBio);
+      if (editProfileImage) {
+        formData.append("file", editProfileImage);
+      }
+
+      const res = await api.patch("/profile", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
       });
 
       // 유저 상태 업데이트
@@ -169,6 +198,7 @@ export default function ProfilePage() {
         ...user,
         nickname: res.data.user.nickname,
         bio: res.data.user.bio,
+        profileImage: res.data.user.profileImage,
       });
 
       closeEditModal();
@@ -367,7 +397,7 @@ export default function ProfilePage() {
           <div className="shrink-0">
             <div className="p-1 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-500">
               <div className="p-1 bg-black rounded-full">
-                <img src={user.profileImage} alt={user.nickname} className="w-32 h-32 rounded-full object-cover" />
+                <img src={user.profileImage || DEFAULT_PROFILE_IMAGE} alt={user.nickname} className="w-32 h-32 rounded-full object-cover" />
               </div>
             </div>
           </div>
@@ -499,8 +529,11 @@ export default function ProfilePage() {
             <div className="p-6">
               {/* 프로필 이미지 */}
               <div className="flex flex-col items-center mb-6">
-                <img src={user?.profileImage} alt={user?.nickname} className="w-20 h-20 rounded-full object-cover mb-2" />
-                <button className="text-blue-500 text-sm font-semibold hover:text-blue-400">프로필 사진 바꾸기</button>
+                <img src={editProfileImagePreview || user?.profileImage || DEFAULT_PROFILE_IMAGE} alt={user?.nickname} className="w-20 h-20 rounded-full object-cover mb-2" />
+                <label className="text-blue-500 text-sm font-semibold hover:text-blue-400 cursor-pointer">
+                  프로필 사진 바꾸기
+                  <input type="file" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" className="hidden" onChange={handleProfileImageSelect} />
+                </label>
               </div>
 
               {/* 닉네임 입력 */}
@@ -586,7 +619,7 @@ export default function ProfilePage() {
               {/* 게시글 입력 */}
               <div className="mt-4">
                 <div className="flex items-center gap-3 mb-3">
-                  <img src={user?.profileImage} alt={user?.nickname} className="w-8 h-8 rounded-full object-cover" />
+                  <img src={user?.profileImage || DEFAULT_PROFILE_IMAGE} alt={user?.nickname} className="w-8 h-8 rounded-full object-cover" />
                   <span className="font-semibold text-sm">{user?.nickname}</span>
                 </div>
                 <textarea
@@ -628,7 +661,7 @@ export default function ProfilePage() {
               <div className="w-[340px] flex flex-col border-l border-zinc-700">
                 {/* 헤더: 작성자 정보 */}
                 <div className="flex items-center gap-3 p-4 border-b border-zinc-700">
-                  <img src={selectedPost.user.profileImage} alt={selectedPost.user.nickname} className="w-10 h-10 rounded-full object-cover" />
+                  <img src={selectedPost.user.profileImage || DEFAULT_PROFILE_IMAGE} alt={selectedPost.user.nickname} className="w-10 h-10 rounded-full object-cover" />
                   <span className="font-semibold text-sm">{selectedPost.user.nickname}</span>
                 </div>
 
@@ -637,7 +670,7 @@ export default function ProfilePage() {
                   {/* 게시글 캡션 */}
                   {selectedPost.caption && (
                     <div className="flex gap-3 mb-4">
-                      <img src={selectedPost.user.profileImage} alt={selectedPost.user.nickname} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                      <img src={selectedPost.user.profileImage || DEFAULT_PROFILE_IMAGE} alt={selectedPost.user.nickname} className="w-8 h-8 rounded-full object-cover shrink-0" />
                       <div>
                         <span className="font-semibold text-sm mr-2">{selectedPost.user.nickname}</span>
                         <span className="text-sm text-zinc-300">{selectedPost.caption}</span>
@@ -650,7 +683,7 @@ export default function ProfilePage() {
                     <div className="space-y-4">
                       {selectedPost.comments.map((comment) => (
                         <div key={comment.id} className="flex gap-3">
-                          <img src={comment.user.profileImage} alt={comment.user.nickname} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                          <img src={comment.user.profileImage || DEFAULT_PROFILE_IMAGE} alt={comment.user.nickname} className="w-8 h-8 rounded-full object-cover shrink-0" />
                           <div>
                             <span className="font-semibold text-sm mr-2">{comment.user.nickname}</span>
                             <span className="text-sm text-zinc-300">{comment.content}</span>
