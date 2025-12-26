@@ -27,6 +27,32 @@ interface PostItem {
   commentsCount: number;
 }
 
+interface CommentUser {
+  id: string;
+  username: string;
+  nickname: string;
+  profileImage: string;
+}
+
+interface CommentItem {
+  id: string;
+  content: string;
+  createdAt: string;
+  user: CommentUser;
+}
+
+interface PostDetail {
+  id: string;
+  imageUrl: string;
+  caption?: string;
+  createdAt: string;
+  likesCount: number;
+  isLiked: boolean;
+  commentsCount: number;
+  user: CommentUser;
+  comments: CommentItem[];
+}
+
 export default function ProfilePage() {
   const router = useRouter();
   const params = useParams();
@@ -49,6 +75,13 @@ export default function ProfilePage() {
   const [postImagePreview, setPostImagePreview] = useState<string>("");
   const [postCaption, setPostCaption] = useState("");
   const [isPosting, setIsPosting] = useState(false);
+
+  // 게시물 상세 모달 상태
+  const [isPostDetailModalOpen, setIsPostDetailModalOpen] = useState(false);
+  const [selectedPost, setSelectedPost] = useState<PostDetail | null>(null);
+  const [isLoadingPost, setIsLoadingPost] = useState(false);
+  const [newComment, setNewComment] = useState("");
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
 
   useEffect(() => {
     // 토큰 확인
@@ -217,6 +250,77 @@ export default function ProfilePage() {
     }
   };
 
+  // 게시물 상세 모달 열기
+  const openPostDetailModal = async (postId: string) => {
+    setIsLoadingPost(true);
+    setIsPostDetailModalOpen(true);
+
+    try {
+      const res = await api.get(`/posts/${postId}`);
+      setSelectedPost(res.data);
+    } catch (error) {
+      console.error("게시물 로드 실패:", error);
+      alert("게시물을 불러올 수 없습니다.");
+      setIsPostDetailModalOpen(false);
+    } finally {
+      setIsLoadingPost(false);
+    }
+  };
+
+  // 게시물 상세 모달 닫기
+  const closePostDetailModal = () => {
+    setIsPostDetailModalOpen(false);
+    setSelectedPost(null);
+    setNewComment("");
+  };
+
+  // 좋아요 토글
+  const handleToggleLike = async () => {
+    if (!selectedPost) return;
+
+    try {
+      const res = await api.post(`/posts/${selectedPost.id}/like`);
+      setSelectedPost({
+        ...selectedPost,
+        isLiked: res.data.isLiked,
+        likesCount: res.data.likesCount,
+      });
+
+      // 게시물 목록도 업데이트
+      setPosts(posts.map((p) => (p.id === selectedPost.id ? { ...p, likesCount: res.data.likesCount } : p)));
+    } catch (error) {
+      console.error("좋아요 실패:", error);
+    }
+  };
+
+  // 댓글 추가
+  const handleAddComment = async () => {
+    if (!selectedPost || !newComment.trim()) return;
+
+    setIsSubmittingComment(true);
+    try {
+      const res = await api.post(`/posts/${selectedPost.id}/comments`, {
+        content: newComment.trim(),
+      });
+
+      setSelectedPost({
+        ...selectedPost,
+        comments: [...selectedPost.comments, res.data],
+        commentsCount: selectedPost.commentsCount + 1,
+      });
+
+      // 게시물 목록도 업데이트
+      setPosts(posts.map((p) => (p.id === selectedPost.id ? { ...p, commentsCount: p.commentsCount + 1 } : p)));
+
+      setNewComment("");
+    } catch (error: any) {
+      const message = error.response?.data?.message || "댓글 작성에 실패했습니다.";
+      alert(message);
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black">
@@ -327,12 +431,6 @@ export default function ProfilePage() {
               </svg>
               게시물
             </button>
-            <button className="flex items-center gap-2 px-4 py-4 text-sm font-medium text-zinc-500 hover:text-white transition-colors">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-              </svg>
-              저장됨
-            </button>
           </div>
         </div>
 
@@ -340,7 +438,7 @@ export default function ProfilePage() {
         {posts.length > 0 && (
           <div className="grid grid-cols-3 gap-1 mt-1">
             {posts.map((post) => (
-              <div key={post.id} className="aspect-square bg-zinc-900 cursor-pointer relative group overflow-hidden">
+              <div key={post.id} className="aspect-square bg-zinc-900 cursor-pointer relative group overflow-hidden" onClick={() => openPostDetailModal(post.id)}>
                 <img src={post.imageUrl} alt={post.caption || "게시물"} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
                 {/* 호버 오버레이 */}
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-6">
@@ -503,6 +601,141 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 게시물 상세 모달 */}
+      {isPostDetailModalOpen && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={closePostDetailModal}>
+          <button onClick={closePostDetailModal} className="absolute top-4 right-4 text-white hover:text-zinc-300 z-10">
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          {isLoadingPost ? (
+            <div className="flex items-center justify-center">
+              <div className="w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          ) : selectedPost ? (
+            <div className="bg-zinc-900 rounded-lg overflow-hidden flex max-w-5xl w-full mx-4 max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+              {/* 왼쪽: 이미지 */}
+              <div className="flex-1 bg-black flex items-center justify-center min-w-0">
+                <img src={selectedPost.imageUrl} alt={selectedPost.caption || "게시물"} className="max-w-full max-h-[90vh] object-contain" />
+              </div>
+
+              {/* 오른쪽: 정보 */}
+              <div className="w-[340px] flex flex-col border-l border-zinc-700">
+                {/* 헤더: 작성자 정보 */}
+                <div className="flex items-center gap-3 p-4 border-b border-zinc-700">
+                  <img src={selectedPost.user.profileImage} alt={selectedPost.user.nickname} className="w-10 h-10 rounded-full object-cover" />
+                  <span className="font-semibold text-sm">{selectedPost.user.nickname}</span>
+                </div>
+
+                {/* 댓글 영역 */}
+                <div className="flex-1 overflow-y-auto p-4">
+                  {/* 게시글 캡션 */}
+                  {selectedPost.caption && (
+                    <div className="flex gap-3 mb-4">
+                      <img src={selectedPost.user.profileImage} alt={selectedPost.user.nickname} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                      <div>
+                        <span className="font-semibold text-sm mr-2">{selectedPost.user.nickname}</span>
+                        <span className="text-sm text-zinc-300">{selectedPost.caption}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 댓글 목록 */}
+                  {selectedPost.comments.length > 0 ? (
+                    <div className="space-y-4">
+                      {selectedPost.comments.map((comment) => (
+                        <div key={comment.id} className="flex gap-3">
+                          <img src={comment.user.profileImage} alt={comment.user.nickname} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                          <div>
+                            <span className="font-semibold text-sm mr-2">{comment.user.nickname}</span>
+                            <span className="text-sm text-zinc-300">{comment.content}</span>
+                            <p className="text-xs text-zinc-500 mt-1">{new Date(comment.createdAt).toLocaleDateString("ko-KR")}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center text-zinc-500 py-8">
+                      <p className="text-lg font-semibold mb-1">아직 댓글이 없습니다</p>
+                      <p className="text-sm">댓글을 추가하세요.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* 좋아요 & 액션 버튼 */}
+                <div className="border-t border-zinc-700 p-4">
+                  <div className="flex items-center gap-4 mb-2">
+                    {/* 좋아요 버튼 */}
+                    <button onClick={handleToggleLike} className="hover:opacity-70 transition-opacity">
+                      {selectedPost.isLiked ? (
+                        <svg className="w-7 h-7 text-red-500" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                    {/* 댓글 아이콘 */}
+                    <svg className="w-7 h-7 cursor-pointer hover:opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                      />
+                    </svg>
+                  </div>
+
+                  {/* 좋아요 수 */}
+                  <p className="font-semibold text-sm mb-1">좋아요 {selectedPost.likesCount}개</p>
+
+                  {/* 게시 날짜 */}
+                  <p className="text-xs text-zinc-500">
+                    {new Date(selectedPost.createdAt).toLocaleDateString("ko-KR", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </p>
+                </div>
+
+                {/* 댓글 입력 */}
+                <div className="border-t border-zinc-700 p-4 flex items-center gap-3">
+                  <input
+                    type="text"
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    placeholder="댓글 달기..."
+                    className="flex-1 bg-transparent text-sm focus:outline-none"
+                    onKeyPress={(e) => {
+                      if (e.key === "Enter" && !isSubmittingComment) {
+                        handleAddComment();
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={handleAddComment}
+                    disabled={!newComment.trim() || isSubmittingComment}
+                    className="text-blue-500 font-semibold text-sm hover:text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSubmittingComment ? "게시 중..." : "게시"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
     </main>
