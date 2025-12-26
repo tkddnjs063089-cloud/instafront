@@ -38,11 +38,19 @@ interface CommentUser {
   profileImage: string;
 }
 
+interface ReplyItem {
+  id: string;
+  seccomment: string;
+  createdAt: string;
+  user: CommentUser;
+}
+
 interface CommentItem {
   id: string;
   content: string;
   createdAt: string;
   user: CommentUser;
+  replies: ReplyItem[];
 }
 
 interface PostDetail {
@@ -88,6 +96,12 @@ export default function ProfilePage() {
   const [isLoadingPost, setIsLoadingPost] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+
+  // 대댓글 상태
+  const [replyingTo, setReplyingTo] = useState<string | null>(null); // 대댓글 작성 중인 댓글 ID
+  const [newReply, setNewReply] = useState("");
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+  const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set()); // 펼쳐진 대댓글
 
   useEffect(() => {
     // 토큰 확인
@@ -302,6 +316,9 @@ export default function ProfilePage() {
     setIsPostDetailModalOpen(false);
     setSelectedPost(null);
     setNewComment("");
+    setReplyingTo(null);
+    setNewReply("");
+    setExpandedReplies(new Set());
   };
 
   // 좋아요 토글
@@ -349,6 +366,47 @@ export default function ProfilePage() {
     } finally {
       setIsSubmittingComment(false);
     }
+  };
+
+  // 대댓글 추가
+  const handleAddReply = async (commentId: string) => {
+    if (!selectedPost || !newReply.trim()) return;
+
+    setIsSubmittingReply(true);
+    try {
+      const res = await api.post(`/comments/${commentId}/replies`, {
+        seccomment: newReply.trim(),
+      });
+
+      // 해당 댓글의 대댓글 목록 업데이트
+      setSelectedPost({
+        ...selectedPost,
+        comments: selectedPost.comments.map((comment) => (comment.id === commentId ? { ...comment, replies: [...comment.replies, res.data] } : comment)),
+      });
+
+      setNewReply("");
+      setReplyingTo(null);
+      // 대댓글 펼치기
+      setExpandedReplies((prev) => new Set([...prev, commentId]));
+    } catch (error: any) {
+      const message = error.response?.data?.message || "대댓글 작성에 실패했습니다.";
+      alert(message);
+    } finally {
+      setIsSubmittingReply(false);
+    }
+  };
+
+  // 대댓글 토글
+  const toggleReplies = (commentId: string) => {
+    setExpandedReplies((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(commentId)) {
+        newSet.delete(commentId);
+      } else {
+        newSet.add(commentId);
+      }
+      return newSet;
+    });
   };
 
   if (isLoading) {
@@ -659,35 +717,97 @@ export default function ProfilePage() {
 
               {/* 오른쪽: 정보 */}
               <div className="w-[340px] flex flex-col border-l border-zinc-700">
-                {/* 헤더: 작성자 정보 */}
-                <div className="flex items-center gap-3 p-4 border-b border-zinc-700">
-                  <img src={selectedPost.user.profileImage || DEFAULT_PROFILE_IMAGE} alt={selectedPost.user.nickname} className="w-10 h-10 rounded-full object-cover" />
-                  <span className="font-semibold text-sm">{selectedPost.user.nickname}</span>
-                </div>
-
-                {/* 댓글 영역 */}
-                <div className="flex-1 overflow-y-auto p-4">
-                  {/* 게시글 캡션 */}
+                {/* 헤더: 작성자 정보 + 캡션 */}
+                <div className="border-b border-zinc-700">
+                  <div className="flex items-center gap-3 p-4">
+                    <img src={selectedPost.user.profileImage || DEFAULT_PROFILE_IMAGE} alt={selectedPost.user.nickname} className="w-10 h-10 rounded-full object-cover" />
+                    <span className="font-semibold text-sm">{selectedPost.user.nickname}</span>
+                  </div>
+                  {/* 게시글 캡션 (헤더 바로 아래 고정) */}
                   {selectedPost.caption && (
-                    <div className="flex gap-3 mb-4">
-                      <img src={selectedPost.user.profileImage || DEFAULT_PROFILE_IMAGE} alt={selectedPost.user.nickname} className="w-8 h-8 rounded-full object-cover shrink-0" />
-                      <div>
-                        <span className="font-semibold text-sm mr-2">{selectedPost.user.nickname}</span>
-                        <span className="text-sm text-zinc-300">{selectedPost.caption}</span>
-                      </div>
+                    <div className="px-4 pb-4">
+                      <p className="text-sm">
+                        <span className="font-semibold mr-2">{selectedPost.user.nickname}</span>
+                        <span className="text-zinc-300">{selectedPost.caption}</span>
+                      </p>
                     </div>
                   )}
+                </div>
 
+                {/* 댓글 영역 (스크롤) */}
+                <div className="flex-1 overflow-y-auto p-4">
                   {/* 댓글 목록 */}
                   {selectedPost.comments.length > 0 ? (
                     <div className="space-y-4">
                       {selectedPost.comments.map((comment) => (
-                        <div key={comment.id} className="flex gap-3">
-                          <img src={comment.user.profileImage || DEFAULT_PROFILE_IMAGE} alt={comment.user.nickname} className="w-8 h-8 rounded-full object-cover shrink-0" />
-                          <div>
-                            <span className="font-semibold text-sm mr-2">{comment.user.nickname}</span>
-                            <span className="text-sm text-zinc-300">{comment.content}</span>
-                            <p className="text-xs text-zinc-500 mt-1">{new Date(comment.createdAt).toLocaleDateString("ko-KR")}</p>
+                        <div key={comment.id}>
+                          <div className="flex gap-3">
+                            <img src={comment.user.profileImage || DEFAULT_PROFILE_IMAGE} alt={comment.user.nickname} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                            <div className="flex-1">
+                              <span className="font-semibold text-sm mr-2">{comment.user.nickname}</span>
+                              <span className="text-sm text-zinc-300">{comment.content}</span>
+                              <div className="flex items-center gap-3 mt-1">
+                                <p className="text-xs text-zinc-500">{new Date(comment.createdAt).toLocaleDateString("ko-KR")}</p>
+                                <button
+                                  onClick={() => {
+                                    setReplyingTo(replyingTo === comment.id ? null : comment.id);
+                                    setNewReply("");
+                                  }}
+                                  className="text-xs text-zinc-500 hover:text-zinc-300"
+                                >
+                                  답글 달기
+                                </button>
+                              </div>
+
+                              {/* 대댓글 보기 토글 */}
+                              {comment.replies && comment.replies.length > 0 && (
+                                <button onClick={() => toggleReplies(comment.id)} className="text-xs text-zinc-500 hover:text-zinc-300 mt-2 flex items-center gap-1">
+                                  <span className="w-6 h-px bg-zinc-500"></span>
+                                  {expandedReplies.has(comment.id) ? "답글 숨기기" : `답글 보기 (${comment.replies.length}개)`}
+                                </button>
+                              )}
+
+                              {/* 대댓글 목록 */}
+                              {expandedReplies.has(comment.id) && comment.replies && comment.replies.length > 0 && (
+                                <div className="mt-3 space-y-3">
+                                  {comment.replies.map((reply) => (
+                                    <div key={reply.id} className="flex gap-2">
+                                      <img src={reply.user.profileImage || DEFAULT_PROFILE_IMAGE} alt={reply.user.nickname} className="w-6 h-6 rounded-full object-cover shrink-0" />
+                                      <div>
+                                        <span className="font-semibold text-xs mr-2">{reply.user.nickname}</span>
+                                        <span className="text-xs text-zinc-300">{reply.seccomment}</span>
+                                        <p className="text-xs text-zinc-500 mt-0.5">{new Date(reply.createdAt).toLocaleDateString("ko-KR")}</p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* 대댓글 입력창 */}
+                              {replyingTo === comment.id && (
+                                <div className="mt-3 flex items-center gap-2">
+                                  <input
+                                    type="text"
+                                    value={newReply}
+                                    onChange={(e) => setNewReply(e.target.value)}
+                                    placeholder="답글 달기..."
+                                    className="flex-1 bg-zinc-800 text-xs px-3 py-2 rounded-full focus:outline-none"
+                                    onKeyPress={(e) => {
+                                      if (e.key === "Enter" && !isSubmittingReply) {
+                                        handleAddReply(comment.id);
+                                      }
+                                    }}
+                                  />
+                                  <button
+                                    onClick={() => handleAddReply(comment.id)}
+                                    disabled={!newReply.trim() || isSubmittingReply}
+                                    className="text-blue-500 text-xs font-semibold hover:text-blue-400 disabled:opacity-50"
+                                  >
+                                    {isSubmittingReply ? "게시 중..." : "게시"}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))}
