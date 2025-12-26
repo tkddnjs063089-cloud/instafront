@@ -4,11 +4,27 @@ import React, { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import api from "../lib/api";
 
+interface Stats {
+  posts: number;
+  followers: number;
+  following: number;
+}
+
 interface User {
   id: string;
   username: string;
   nickname: string;
   profileImage: string;
+  bio?: string;
+  stats: Stats;
+}
+
+interface PostItem {
+  id: string;
+  imageUrl: string;
+  caption?: string;
+  likesCount: number;
+  commentsCount: number;
 }
 
 export default function ProfilePage() {
@@ -17,25 +33,9 @@ export default function ProfilePage() {
   const username = params.username as string;
 
   const [user, setUser] = useState<User | null>(null);
+  const [posts, setPosts] = useState<PostItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isOwnProfile, setIsOwnProfile] = useState(false);
-
-  // 임시 게시물 데이터 (나중에 백엔드에서 가져오기)
-  const posts = [
-    { id: 1, image: "https://picsum.photos/300/300?random=1" },
-    { id: 2, image: "https://picsum.photos/300/300?random=2" },
-    { id: 3, image: "https://picsum.photos/300/300?random=3" },
-    { id: 4, image: "https://picsum.photos/300/300?random=4" },
-    { id: 5, image: "https://picsum.photos/300/300?random=5" },
-    { id: 6, image: "https://picsum.photos/300/300?random=6" },
-  ];
-
-  // 임시 통계 데이터
-  const stats = {
-    posts: 6,
-    followers: 128,
-    following: 95,
-  };
 
   useEffect(() => {
     // 토큰 확인
@@ -46,21 +46,24 @@ export default function ProfilePage() {
       return;
     }
 
-    // API로 프로필 정보 가져오기
-    const fetchProfile = async () => {
+    // API로 프로필 정보와 게시물 가져오기
+    const fetchData = async () => {
       try {
         // 현재 로그인한 유저 정보
-        const res = await api.get("/profile");
-        const currentUser = res.data;
+        const [profileRes, postsRes] = await Promise.all([api.get("/profile"), api.get("/posts")]);
+
+        const currentUser = profileRes.data;
+        const userPosts = postsRes.data;
 
         // URL의 username과 현재 로그인한 유저가 같은지 확인
         if (currentUser.username === username) {
           setUser(currentUser);
+          setPosts(userPosts);
           setIsOwnProfile(true);
         } else {
           // 다른 유저 프로필 보기 (나중에 구현)
-          // 일단은 현재 유저 정보로 표시
           setUser(currentUser);
+          setPosts(userPosts);
           setIsOwnProfile(false);
         }
       } catch (error) {
@@ -72,7 +75,7 @@ export default function ProfilePage() {
       }
     };
 
-    fetchProfile();
+    fetchData();
   }, [router, username]);
 
   const handleLogout = async () => {
@@ -135,7 +138,7 @@ export default function ProfilePage() {
           <div className="flex-1 pt-2">
             {/* 유저네임 & 버튼 */}
             <div className="flex items-center gap-4 mb-5">
-              <h2 className="text-xl font-normal">{user.username}</h2>
+              <h2 className="text-xl font-normal">{user.nickname}</h2>
               {isOwnProfile ? (
                 <button className="px-4 py-1.5 bg-zinc-800 rounded-lg text-sm font-semibold hover:bg-zinc-700 transition-colors">프로필 편집</button>
               ) : (
@@ -146,15 +149,15 @@ export default function ProfilePage() {
             {/* 통계 */}
             <div className="flex gap-10 mb-5">
               <div className="text-center">
-                <span className="font-semibold">{stats.posts}</span>
+                <span className="font-semibold">{user.stats.posts}</span>
                 <span className="text-zinc-400 ml-1">게시물</span>
               </div>
               <div className="text-center cursor-pointer hover:opacity-70">
-                <span className="font-semibold">{stats.followers}</span>
+                <span className="font-semibold">{user.stats.followers}</span>
                 <span className="text-zinc-400 ml-1">팔로워</span>
               </div>
               <div className="text-center cursor-pointer hover:opacity-70">
-                <span className="font-semibold">{stats.following}</span>
+                <span className="font-semibold">{user.stats.following}</span>
                 <span className="text-zinc-400 ml-1">팔로잉</span>
               </div>
             </div>
@@ -162,7 +165,7 @@ export default function ProfilePage() {
             {/* 닉네임 & 바이오 */}
             <div>
               <p className="font-semibold">{user.nickname}</p>
-              <p className="text-zinc-400 text-sm mt-1">안녕하세요 👋</p>
+              <p className="text-zinc-400 text-sm mt-1">{user.bio || "자기소개를 입력하세요"}</p>
             </div>
           </div>
         </section>
@@ -198,28 +201,30 @@ export default function ProfilePage() {
         </div>
 
         {/* 게시물 그리드 */}
-        <div className="grid grid-cols-3 gap-1 mt-1">
-          {posts.map((post) => (
-            <div key={post.id} className="aspect-square bg-zinc-900 cursor-pointer relative group overflow-hidden">
-              <img src={post.image} alt={`게시물 ${post.id}`} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
-              {/* 호버 오버레이 */}
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-6">
-                <div className="flex items-center gap-2 text-white font-semibold">
-                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                  </svg>
-                  <span>24</span>
-                </div>
-                <div className="flex items-center gap-2 text-white font-semibold">
-                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10z" />
-                  </svg>
-                  <span>3</span>
+        {posts.length > 0 && (
+          <div className="grid grid-cols-3 gap-1 mt-1">
+            {posts.map((post) => (
+              <div key={post.id} className="aspect-square bg-zinc-900 cursor-pointer relative group overflow-hidden">
+                <img src={post.imageUrl} alt={post.caption || "게시물"} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                {/* 호버 오버레이 */}
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-6">
+                  <div className="flex items-center gap-2 text-white font-semibold">
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                    </svg>
+                    <span>{post.likesCount}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-white font-semibold">
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10z" />
+                    </svg>
+                    <span>{post.commentsCount}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* 게시물이 없을 때 */}
         {posts.length === 0 && (
